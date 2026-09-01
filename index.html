@@ -943,7 +943,7 @@
                 </button>
               </div>
               <input type="file" id="student-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="importStudentsFromFile(event)">
-              <button id="debug-mock-upload" onclick="fetch('/FESTO%20Calificaciones%20por%20grupo.xlsx').then(r=>r.blob()).then(b=>{const f=new File([b],'FESTO Calificaciones por grupo.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const dt=new DataTransfer();dt.items.add(f);const i=document.getElementById('student-file-input');i.files=dt.files;i.dispatchEvent(new Event('change',{bubbles:true}));})" class="w-full mt-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 font-semibold py-2 rounded-xl transition text-xs border border-emerald-500/20">
+              <button id="debug-mock-upload" onclick="fetch('./FESTO%20Calificaciones%20por%20grupo.xlsx').then(r=>r.blob()).then(b=>{const f=new File([b],'FESTO Calificaciones por grupo.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const dt=new DataTransfer();dt.items.add(f);const i=document.getElementById('student-file-input');i.files=dt.files;i.dispatchEvent(new Event('change',{bubbles:true}));}).catch(err=>{console.error('Error al autocargar:', err);showToast('No se pudo leer el archivo local.');})" class="w-full mt-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 font-semibold py-2 rounded-xl transition text-xs border border-emerald-500/20">
                 Autocargar 'FESTO Calificaciones por grupo.xlsx'
               </button>
             </div>
@@ -1417,17 +1417,25 @@ function loadDB() {
     const saved = localStorage.getItem('festo_gt_db');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed && Array.isArray(parsed.cronogramas) && parsed.cronogramas.length > 0) {
-        db.cronogramas = parsed.cronogramas.filter(c => c && c.id && !c.id.includes('sample'));
-      }
-      if (parsed && Array.isArray(parsed.escuelas) && parsed.escuelas.length > 0) {
-        db.escuelas = parsed.escuelas;
-      }
-      if (parsed && Array.isArray(parsed.estudiantes) && parsed.estudiantes.length > 0) {
-        db.estudiantes = parsed.estudiantes;
-      }
-      if (parsed && parsed.calificaciones) {
-        db.calificaciones = parsed.calificaciones;
+      if (parsed) {
+        if (Array.isArray(parsed.cronogramas) && parsed.cronogramas.length > 0) {
+          db.cronogramas = parsed.cronogramas.filter(c => c && c.id && !c.id.includes('sample'));
+        }
+        if (Array.isArray(parsed.escuelas) && parsed.escuelas.length > 0) {
+          db.escuelas = parsed.escuelas;
+        }
+        if (Array.isArray(parsed.estudiantes) && parsed.estudiantes.length > 0) {
+          db.estudiantes = parsed.estudiantes;
+        }
+        if (parsed.calificaciones && Object.keys(parsed.calificaciones).length > 0) {
+          db.calificaciones = parsed.calificaciones;
+        }
+        if (Array.isArray(parsed.avisos_logisticos) && parsed.avisos_logisticos.length > 0) {
+          db.avisos_logisticos = parsed.avisos_logisticos;
+        }
+        if (Array.isArray(parsed.usuarios) && parsed.usuarios.length > 0) {
+          db.usuarios = parsed.usuarios;
+        }
       }
     }
   } catch(e) {
@@ -1804,6 +1812,49 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
         updateAuthUI();
         showToast(`❌ El usuario "${userIdentifier}" no está registrado en la base de datos.`);
         return false;
+      }
+    }
+
+    function loginAsPreset(presetRole) {
+      let user;
+      if (presetRole === 'coordinador') {
+        user = {
+          id: "YN8KgpP4RrcHC7YrYm30rBHLFxt1",
+          nombre: "Israel Pavelek",
+          apellido: "Coordinador General ETRR",
+          email: "ipavelek@gmail.com",
+          rol: "coordinador",
+          escuela_id: null
+        };
+      } else if (presetRole === 'docente_etrr') {
+        user = {
+          id: "uid_docente_etrr",
+          nombre: "Docente ETRR",
+          apellido: "Capacitador Festo",
+          email: "docente@etrr.edu.ar",
+          rol: "docente_etrr",
+          escuela_id: null
+        };
+      } else if (presetRole === 'escuela_admin_est1') {
+        user = {
+          id: "uid_admin_est1",
+          nombre: "Coordinador EST N°1",
+          apellido: "Campana",
+          email: "eest1@abc.gob.ar",
+          rol: "escuela_admin_est1",
+          escuela_id: "est1"
+        };
+      }
+      if (user) {
+        currentUser = user;
+        if (!db.usuarios) db.usuarios = [];
+        if (!db.usuarios.some(u => u.id === user.id)) {
+          db.usuarios.push(user);
+        }
+        localStorage.setItem("festo_gt_user", JSON.stringify(currentUser));
+        saveDB();
+        updateAuthUI();
+        showToast(`✅ Sesión iniciada como: ${currentUser.nombre}`);
       }
     }
 
@@ -2835,6 +2886,80 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       });
     }
 
+    // ORDENAMIENTO DE PLANILLA DOCENTE
+    let teacherSortColumn = 'estudiante';
+    let teacherSortDirection = 'asc';
+
+    function toggleTeacherSort(columnKey) {
+      if (teacherSortColumn === columnKey) {
+        teacherSortDirection = teacherSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        teacherSortColumn = columnKey;
+        teacherSortDirection = 'asc';
+      }
+      renderTeacherSpreadsheet();
+    }
+
+    function renderSortHeaderCell(columnKey, label, minWidth, center = false, extraClasses = "") {
+      const isActive = teacherSortColumn === columnKey;
+      const arrow = isActive 
+        ? (teacherSortDirection === 'asc' ? '▲' : '▼') 
+        : '<span class="opacity-20 group-hover:opacity-75 text-[9px]">↕</span>';
+      const activeColor = isActive ? 'text-indigo-400 font-extrabold' : 'text-slate-200 group-hover:text-indigo-300';
+      const alignClass = center ? 'justify-center text-center' : 'justify-start text-left';
+
+      return `
+        <th onclick="toggleTeacherSort('${columnKey}')" 
+            class="p-3.5 ${minWidth} cursor-pointer select-none group transition-colors hover:bg-slate-800/80 ${extraClasses}"
+            title="Ordenar por ${label} (${isActive && teacherSortDirection === 'asc' ? 'Descendente' : 'Ascendente'})">
+          <div class="flex items-center space-x-1.5 ${alignClass}">
+            <span class="${activeColor} tracking-wider transition-colors">${label}</span>
+            <span class="text-[10px] ${isActive ? 'text-indigo-400 font-black scale-110' : ''} transition-transform">
+              ${arrow}
+            </span>
+          </div>
+        </th>
+      `;
+    }
+
+    function getStudentSortValue(est, columnKey) {
+      const calif = (db.calificaciones && db.calificaciones[est.id]) ? db.calificaciones[est.id] : {};
+      const notes = calif.notas_teorico || {};
+      const recNotes = calif.rec_teorico || {};
+      const evalResult = calcularEstadoEstudiante(notes, calif.notas_practico, recNotes, calif.rec_practico);
+
+      switch (columnKey) {
+        case 'estudiante':
+          return `${est.apellido || ''} ${est.nombre || ''}`.trim().toLowerCase();
+        case 'asistencia':
+          return typeof est.asistencia_porcentaje === 'number' ? est.asistencia_porcentaje : -1;
+        case 'neumatica':
+          return (notes.neumatica !== null && notes.neumatica !== undefined && notes.neumatica !== '') ? Number(notes.neumatica) : -1;
+        case 'rec_neumatica':
+          return (recNotes.neumatica !== null && recNotes.neumatica !== undefined && recNotes.neumatica !== '') ? Number(recNotes.neumatica) : -1;
+        case 'electroneumatica':
+          return (notes.electroneumatica !== null && notes.electroneumatica !== undefined && notes.electroneumatica !== '') ? Number(notes.electroneumatica) : -1;
+        case 'rec_electroneumatica':
+          return (recNotes.electroneumatica !== null && recNotes.electroneumatica !== undefined && recNotes.electroneumatica !== '') ? Number(recNotes.electroneumatica) : -1;
+        case 'plc':
+          return (notes.plc !== null && notes.plc !== undefined && notes.plc !== '') ? Number(notes.plc) : -1;
+        case 'rec_plc':
+          return (recNotes.plc !== null && recNotes.plc !== undefined && recNotes.plc !== '') ? Number(recNotes.plc) : -1;
+        case 'promedio_teorico':
+          return (evalResult.promedioTeorico !== null && evalResult.promedioTeorico !== undefined) ? Number(evalResult.promedioTeorico) : -1;
+        case 'practico':
+          return (calif.notas_practico !== null && calif.notas_practico !== undefined && calif.notas_practico !== '') ? Number(calif.notas_practico) : -1;
+        case 'rec_practico':
+          return (calif.rec_practico !== null && calif.rec_practico !== undefined && calif.rec_practico !== '') ? Number(calif.rec_practico) : -1;
+        case 'estado':
+          return (evalResult.estado || '').toLowerCase();
+        case 'mapa':
+          return (calif.comentarios_mapa || '').toLowerCase();
+        default:
+          return '';
+      }
+    }
+
     // RENDER: TEACHER GRADES & ATTENDANCE SPREADSHEET
     function renderTeacherSpreadsheet() {
       const body = document.getElementById("teacher-spreadsheet-body");
@@ -2854,54 +2979,69 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       const showRecToggle = document.getElementById("toggle-show-rec");
       const showRec = showRecToggle ? showRecToggle.checked : false;
 
-      // Render Dynamic Header
+      // Render Dynamic Header con ordenamiento interactivo
       const headerEl = document.getElementById("spreadsheet-header");
       if (headerEl) {
         if (showRec) {
           headerEl.innerHTML = `
             <tr class="bg-slate-900/90 text-slate-200 border-b border-dark-border text-xs font-bold uppercase tracking-wider">
-              <th class="p-4 min-w-[180px]">Estudiante</th>
-              <th class="p-4 text-center min-w-[120px]">Asistencia</th>
-              <th class="p-4 text-center min-w-[70px]">Neu.</th>
-              <th class="p-4 text-center min-w-[70px]">Rec. Neu.</th>
-              <th class="p-4 text-center min-w-[70px]">Elec.</th>
-              <th class="p-4 text-center min-w-[70px]">Rec. Elec.</th>
-              <th class="p-4 text-center min-w-[70px]">PLC</th>
-              <th class="p-4 text-center min-w-[70px]">Rec. PLC</th>
-              <th class="p-4 text-center bg-indigo-950/40 text-indigo-300 min-w-[85px]">Prom. Teor.</th>
-              <th class="p-4 text-center min-w-[70px]">Práct.</th>
-              <th class="p-4 text-center min-w-[70px]">Rec. Práct.</th>
-              <th class="p-4 min-w-[150px]">Estado Acreditación</th>
-              <th class="p-4 min-w-[200px]">Seguimiento MAPA (Comentarios)</th>
+              ${renderSortHeaderCell('estudiante', 'Estudiante', 'min-w-[180px]')}
+              ${renderSortHeaderCell('asistencia', 'Asistencia', 'min-w-[120px]', true)}
+              ${renderSortHeaderCell('neumatica', 'Neu.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('rec_neumatica', 'Rec. Neu.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('electroneumatica', 'Elec.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('rec_electroneumatica', 'Rec. Elec.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('plc', 'PLC', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('rec_plc', 'Rec. PLC', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('promedio_teorico', 'Prom. Teor.', 'min-w-[85px]', true, 'bg-indigo-950/40 text-indigo-300')}
+              ${renderSortHeaderCell('practico', 'Práct.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('rec_practico', 'Rec. Práct.', 'min-w-[70px]', true)}
+              ${renderSortHeaderCell('estado', 'Estado Acreditación', 'min-w-[150px]')}
+              ${renderSortHeaderCell('mapa', 'Seguimiento MAPA (Comentarios)', 'min-w-[200px]')}
             </tr>
           `;
         } else {
           headerEl.innerHTML = `
             <tr class="bg-slate-900/90 text-slate-200 border-b border-dark-border text-xs font-bold uppercase tracking-wider">
-              <th class="p-4 min-w-[200px]">Estudiante</th>
-              <th class="p-4 text-center min-w-[120px]">Asistencia Rápida</th>
-              <th class="p-4 text-center min-w-[90px]">Neumática</th>
-              <th class="p-4 text-center min-w-[90px]">Electroneum.</th>
-              <th class="p-4 text-center min-w-[90px]">PLC</th>
-              <th class="p-4 text-center bg-indigo-950/40 text-indigo-300 min-w-[95px]">Prom. Teor.</th>
-              <th class="p-4 text-center min-w-[100px]">Ex. Práctico</th>
-              <th class="p-4 min-w-[160px]">Estado Acreditación</th>
-              <th class="p-4 min-w-[220px]">Seguimiento MAPA (Comentarios)</th>
+              ${renderSortHeaderCell('estudiante', 'Estudiante', 'min-w-[200px]')}
+              ${renderSortHeaderCell('asistencia', 'Asistencia Rápida', 'min-w-[120px]', true)}
+              ${renderSortHeaderCell('neumatica', 'Neumática', 'min-w-[90px]', true)}
+              ${renderSortHeaderCell('electroneumatica', 'Electroneum.', 'min-w-[90px]', true)}
+              ${renderSortHeaderCell('plc', 'PLC', 'min-w-[90px]', true)}
+              ${renderSortHeaderCell('promedio_teorico', 'Prom. Teor.', 'min-w-[95px]', true, 'bg-indigo-950/40 text-indigo-300')}
+              ${renderSortHeaderCell('practico', 'Ex. Práctico', 'min-w-[100px]', true)}
+              ${renderSortHeaderCell('estado', 'Estado Acreditación', 'min-w-[160px]')}
+              ${renderSortHeaderCell('mapa', 'Seguimiento MAPA (Comentarios)', 'min-w-[220px]')}
             </tr>
           `;
         }
       }
 
-      // Clean up orphaned students globally to ensure they don't appear when "Todas las comisiones" is selected
-      const validComisionesGlobal = new Set(db.cronogramas.map(c => c.id));
-      db.estudiantes = db.estudiantes.filter(e => e.comision_id && validComisionesGlobal.has(e.comision_id));
-      
-      // Filtrar estudiantes correspondientes a la escuela y comisión seleccionada
+      // Filtrar estudiantes correspondientes a la escuela y comisión seleccionada (SIN mutar db.estudiantes)
+      const validComisionesGlobal = new Set((db.cronogramas || []).map(c => c.id));
       const comisionFilter = document.getElementById("teacher-comision-filter") ? document.getElementById("teacher-comision-filter").value : "all";
-      let filteredEstudiantes = db.estudiantes.filter(e => e.escuela_id === schoolFilter);
+      let filteredEstudiantes = (db.estudiantes || []).filter(e => e.escuela_id === schoolFilter);
       if (comisionFilter && comisionFilter !== "all") {
         filteredEstudiantes = filteredEstudiantes.filter(e => e.comision_id === comisionFilter);
       }
+
+      // Aplicar ordenamiento dinámico por columna seleccionada
+      if (teacherSortColumn) {
+        filteredEstudiantes.sort((a, b) => {
+          let valA = getStudentSortValue(a, teacherSortColumn);
+          let valB = getStudentSortValue(b, teacherSortColumn);
+
+          if (typeof valA === 'string' && typeof valB === 'string') {
+            const cmp = valA.localeCompare(valB, 'es', { numeric: true, sensitivity: 'base' });
+            return teacherSortDirection === 'asc' ? cmp : -cmp;
+          } else {
+            if (valA < valB) return teacherSortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return teacherSortDirection === 'asc' ? 1 : -1;
+            return 0;
+          }
+        });
+      }
+
       const countEl = document.getElementById("filtered-students-count");
       if (countEl) countEl.innerText = filteredEstudiantes.length;
 
@@ -3012,38 +3152,38 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
           rowHTML += `
             <!-- Neumática (Inicial + Rec) -->
             <td class="p-2">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
                 id="neu-${est.id}" oninput="updateGradeField('${est.id}', 'neumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${recNotes.neumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.neumatica ?? ''}" 
                 id="rec-neu-${est.id}" oninput="updateGradeField('${est.id}', 'rec_neumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input-rec text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
             <!-- Electroneumática (Inicial + Rec) -->
             <td class="p-2">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
                 id="ele-${est.id}" oninput="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${recNotes.electroneumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.electroneumatica ?? ''}" 
                 id="rec-ele-${est.id}" oninput="updateGradeField('${est.id}', 'rec_electroneumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input-rec text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
             <!-- PLC (Inicial + Rec) -->
             <td class="p-2">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.plc ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.plc ?? ''}" 
                 id="plc-${est.id}" oninput="updateGradeField('${est.id}', 'plc', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${recNotes.plc ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.plc ?? ''}" 
                 id="rec-plc-${est.id}" oninput="updateGradeField('${est.id}', 'rec_plc', this.value)" 
-                ${isReadOnly ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input-rec text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
             <!-- Promedio Teórico -->
@@ -3053,14 +3193,14 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
             <!-- Práctico (Inicial + Rec) -->
             <td class="p-2">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
                 id="prac-${est.id}" oninput="updateGradeField('${est.id}', 'practico', this.value)" 
-                ${isReadOnly || practicoDisabled ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly || practicoDisabled ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${calif.rec_practico ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.rec_practico ?? ''}" 
                 id="rec-prac-${est.id}" oninput="updateGradeField('${est.id}', 'rec_practico', this.value)" 
-                ${isReadOnly || practicoDisabled ? 'disabled class="w-12 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1.5 py-1 text-xs cursor-not-allowed"' : 'class="w-12 grade-input-rec text-center rounded-lg px-1.5 py-1 text-xs"'} >
+                ${isReadOnly || practicoDisabled ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
           `;
         } else {
@@ -3068,19 +3208,19 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
           rowHTML += `
             <!-- Notas Teóricas -->
             <td class="p-4">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
                 id="neu-${est.id}" oninput="updateGradeField('${est.id}', 'neumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-2 py-1.5 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
             <td class="p-4">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
                 id="ele-${est.id}" oninput="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
-                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-2 py-1.5 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
             <td class="p-4">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${notes.plc ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.plc ?? ''}" 
                 id="plc-${est.id}" oninput="updateGradeField('${est.id}', 'plc', this.value)" 
-                ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-2 py-1.5 text-xs"'} >
+                ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
 
             <!-- Promedio Teórico -->
@@ -3090,9 +3230,9 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
             <!-- Examen Práctico -->
             <td class="p-4 text-center">
-              <input type="number" step="0.5" min="1" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
+              <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
                 id="prac-${est.id}" oninput="updateGradeField('${est.id}', 'practico', this.value)" 
-                ${isReadOnly || practicoDisabled ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-2 py-1.5 text-xs"'} >
+                ${isReadOnly || practicoDisabled ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
           `;
         }
@@ -3122,7 +3262,9 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <span id="badge-estado-${est.id}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold inline-block ${badgeClass}">
               ${evalResult.estado}
             </span>
-            ${certBoxHTML}
+            <div id="cert-container-${est.id}">
+              ${certBoxHTML}
+            </div>
           </td>
 
           <!-- Seguimiento MAPA -->
@@ -3161,25 +3303,30 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
       if (field === 'num_certificado') {
         calif.num_certificado = value;
+        saveDB();
         syncToFirestore("calificaciones", studentId, calif);
         return;
       }
 
       if (field === 'fecha_certificacion') {
         calif.fecha_certificacion = value;
+        saveDB();
         syncToFirestore("calificaciones", studentId, calif);
         return;
       }
 
       if (field === 'comentarios_mapa') {
         calif.comentarios_mapa = value;
+        saveDB();
+        syncToFirestore("calificaciones", studentId, calif);
         return;
       }
 
-      // Validar y limitar la nota a un máximo de 10 (inclusive)
+      // Validar y limitar la nota a un máximo de 10 (inclusive) y hasta dos decimales
       let numVal = null;
       if (value !== '' && value !== null && value !== undefined) {
-        let parsed = parseFloat(value);
+        let cleanVal = String(value).trim().replace(',', '.');
+        let parsed = parseFloat(cleanVal);
         if (!isNaN(parsed)) {
           if (parsed > 10) {
             numVal = 10;
@@ -3195,7 +3342,8 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
               activeInput.value = 0;
             }
           } else {
-            numVal = parsed;
+            // Redondear a un máximo de 2 decimales
+            numVal = Math.round(parsed * 100) / 100;
           }
         }
       }
@@ -3242,22 +3390,55 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
         else badge.classList.add("bg-yellow-500/10", "text-yellow-400");
       }
 
-      // Sincronizar instantáneamente la calificación modificada a Cloud Firestore
+      // Persistir de inmediato en localStorage y Cloud Firestore
+      saveDB();
       syncToFirestore("calificaciones", studentId, calif);
+      if (student) {
+        syncToFirestore("estudiantes", studentId, { estado_acreditacion: student.estado_acreditacion });
+      }
 
-      // Re-renderizar la planilla para actualizar de inmediato la aparición/desaparición del recuadro de certificado según el estado de acreditación
-      if (field !== 'comentarios_mapa' && field !== 'num_certificado' && field !== 'fecha_certificacion') {
-        const currentActiveElement = document.activeElement;
-        const activeId = currentActiveElement ? currentActiveElement.id : null;
-        renderTeacherSpreadsheet();
-        if (activeId) {
-          const el = document.getElementById(activeId);
-          if (el) el.focus();
+      // Habilitar o inhabilitar examen práctico dinámicamente si aprobó la parte teórica
+      const isReadOnlyUser = (currentRole === 'veedor' || currentRole === 'escuela_admin_est1' || currentRole === 'escuela_admin_est4');
+      const pracInput = document.getElementById(`prac-${studentId}`);
+      if (pracInput) {
+        if (!evalResult.teoricoAprobado) {
+          pracInput.disabled = true;
+          pracInput.classList.add("cursor-not-allowed");
+        } else {
+          pracInput.disabled = isReadOnlyUser;
+          if (!isReadOnlyUser) pracInput.classList.remove("cursor-not-allowed");
+        }
+      }
+
+      // Actualizar recuadro de certificado dinámicamente según estado
+      const certContainer = document.getElementById(`cert-container-${studentId}`);
+      if (certContainer) {
+        if (evalResult.estado === "Acreditado") {
+          if (!certContainer.firstElementChild) {
+            certContainer.innerHTML = `
+              <div class="mt-2 space-y-1.5 bg-emerald-950/40 border border-emerald-500/30 p-2.5 rounded-xl text-[10px]">
+                <div>
+                  <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">N° Certificado Festo</span>
+                  <input type="text" placeholder="Ej: ETRR-2026-001" value="${calif.num_certificado || ''}" 
+                    id="cert-num-${studentId}" oninput="updateGradeField('${studentId}', 'num_certificado', this.value)" 
+                    class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none font-mono">
+                </div>
+                <div>
+                  <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">Fecha Certificación</span>
+                  <input type="date" value="${calif.fecha_certificacion || ''}" 
+                    id="cert-fecha-${studentId}" onchange="updateGradeField('${studentId}', 'fecha_certificacion', this.value)" 
+                    class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none">
+                </div>
+              </div>
+            `;
+          }
+        } else {
+          certContainer.innerHTML = "";
         }
       }
     }
 
-    // TOGGLE PRESENTISM & RECALCULATE % (SYNC DIRECT TO CLOUD FIRESTORE)
+    // TOGGLE PRESENTISM & RECALCULATE % (SYNC DIRECT TO CLOUD FIRESTORE Y LOCALSTORAGE)
     function togglePresentism(studentId, dayIndex, isChecked) {
       const student = db.estudiantes.find(e => e.id === studentId);
       if (student) {
@@ -3271,7 +3452,8 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
         const presentes = student.asistencia_dias.filter(x => Boolean(x)).length;
         student.asistencia_porcentaje = totalDias > 0 ? (presentes / totalDias) * 100 : 100;
 
-        // Sincronizar instantáneamente a Cloud Firestore
+        // Persistir en localStorage y sincronizar instantáneamente a Cloud Firestore
+        saveDB();
         syncToFirestore("estudiantes", student.id, {
           asistencia_dias: student.asistencia_dias,
           asistencia_porcentaje: student.asistencia_porcentaje
@@ -3285,6 +3467,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
     async function saveAllGrades() {
       showToast("⏳ Sincronizando planilla con Cloud Firestore...");
       try {
+        saveDB();
         for (const est of (db.estudiantes || [])) {
           await syncToFirestore("estudiantes", est.id, est);
           const cal = db.calificaciones ? db.calificaciones[est.id] : null;
@@ -3298,6 +3481,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             await syncToFirestore("calificaciones", est.id, cal);
           }
         }
+        saveDB();
         calculateMetrics();
         renderDashboardStudents();
         showToast("✅ ¡Datos académicos sincronizados exitosamente en Cloud Firestore!");
@@ -3793,11 +3977,12 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
             const parseVal = (val) => {
               if (val === undefined || val === null || String(val).trim() === '') return null;
-              let num = parseFloat(val);
+              let cleanStr = String(val).trim().replace(',', '.');
+              let num = parseFloat(cleanStr);
               if (isNaN(num)) return null;
               if (num > 10) num = 10;
               if (num < 0) num = 0;
-              return num;
+              return Math.round(num * 100) / 100;
             };
 
             if (idxNeu !== -1) calif.notas_teorico.neumatica = parseVal(row[idxNeu]);
@@ -3836,8 +4021,22 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
         saveDB();
         renderAll();
-        showToast(`Importación exitosa. Se actualizaron las notas de ${updatedCount} alumnos.`);
+        showToast(`✅ Importación exitosa. Se actualizaron las notas de ${updatedCount} alumnos. Sincronizando con base de datos...`);
         event.target.value = "";
+
+        // Sincronizar calificaciones y estudiantes en Firestore
+        const califBatch = Object.entries(db.calificaciones || {}).map(([id, data]) => ({ id, ...data }));
+        if (typeof syncBatchToFirestore === 'function' && califBatch.length > 0) {
+          syncBatchToFirestore("calificaciones", califBatch);
+          syncBatchToFirestore("estudiantes", db.estudiantes);
+        } else if (typeof syncToFirestore === 'function') {
+          for (const est of db.estudiantes) {
+            if (db.calificaciones[est.id]) {
+              syncToFirestore("calificaciones", est.id, db.calificaciones[est.id]);
+              syncToFirestore("estudiantes", est.id, { estado_acreditacion: est.estado_acreditacion });
+            }
+          }
+        }
       };
       reader.readAsArrayBuffer(file);
     }
@@ -3920,42 +4119,89 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
 
         let newCount = 0;
         let existsCount = 0;
+        let importSeq = 0;
+        const touchedStudentIds = new Set();
 
         workbook.SheetNames.forEach(sheetName => {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          if (jsonData.length < 2) return;
+          if (!jsonData || jsonData.length < 2) return;
 
-          const headers = jsonData[0];
-          const idxNom = headers.findIndex(h => String(h).toUpperCase().includes("NOM"));
-          const idxApe = headers.findIndex(h => String(h).toUpperCase().includes("APE"));
-          const idxDni = headers.findIndex(h => String(h).toUpperCase().includes("DNI"));
-          const idxCor = headers.findIndex(h => String(h).toUpperCase().includes("CORREO") || String(h).toUpperCase().includes("EMAIL"));
-          const idxTur = headers.findIndex(h => String(h).toUpperCase().includes("TURNO"));
+          // Detección dinámica de la fila de encabezados (recorrer las primeras 10 filas)
+          let headerRowIdx = -1;
+          let idxNom = -1, idxApe = -1, idxDni = -1, idxCor = -1, idxTur = -1, singleNameIdx = -1;
+          let idxNeu = -1, idxEle = -1, idxPlc = -1, idxPrac = -1;
 
-          if (idxNom === -1 || idxApe === -1) return;
+          for (let r = 0; r < Math.min(jsonData.length, 10); r++) {
+            const row = jsonData[r];
+            if (!row || !Array.isArray(row) || row.length === 0) continue;
 
-          for (let i = 1; i < jsonData.length; i++) {
+            const strRow = row.map(cell => String(cell || "").trim().toUpperCase());
+            const curIdxNom = strRow.findIndex(s => (s.includes("NOM") || s.includes("NAME")) && !s.includes("ALUM"));
+            const curIdxApe = strRow.findIndex(s => s.includes("APE") || s.includes("SURNAME"));
+            const curIdxSingle = strRow.findIndex(s => s.includes("ALUMNO") || s.includes("ESTUDIANTE") || s.includes("PARTICIPANTE"));
+            const curIdxDni = strRow.findIndex(s => s.includes("DNI") || s.includes("DOCUMENTO") || s.includes("LEGAJO"));
+
+            if ((curIdxNom !== -1 && curIdxApe !== -1) || curIdxSingle !== -1 || (curIdxNom !== -1 && curIdxDni !== -1)) {
+              headerRowIdx = r;
+              idxNom = curIdxNom;
+              idxApe = curIdxApe;
+              singleNameIdx = curIdxSingle;
+              idxDni = curIdxDni;
+              idxCor = strRow.findIndex(s => s.includes("CORREO") || s.includes("EMAIL") || s.includes("MAIL"));
+              idxTur = strRow.findIndex(s => s.includes("TURNO"));
+              idxNeu = strRow.findIndex(s => s.includes("NEUMÁTICA") && !s.includes("REC"));
+              idxEle = strRow.findIndex(s => s.includes("ELECTRONEUM") && !s.includes("REC"));
+              idxPlc = strRow.findIndex(s => s.includes("PLC") && !s.includes("REC"));
+              idxPrac = strRow.findIndex(s => s.includes("PRÁCTICO") && !s.includes("REC"));
+              break;
+            }
+          }
+
+          if (headerRowIdx === -1) return;
+
+          for (let i = headerRowIdx + 1; i < jsonData.length; i++) {
             const row = jsonData[i];
-            if (!row || row.length === 0) continue;
+            if (!row || !Array.isArray(row) || row.length === 0) continue;
 
-            const nombre = String(row[idxNom] || "").trim();
-            const apellido = String(row[idxApe] || "").trim();
+            let nombre = "";
+            let apellido = "";
+
+            if (idxNom !== -1 && idxApe !== -1) {
+              nombre = String(row[idxNom] || "").trim();
+              apellido = String(row[idxApe] || "").trim();
+            } else if (singleNameIdx !== -1) {
+              const rawName = String(row[singleNameIdx] || "").trim();
+              if (rawName.includes(",")) {
+                const parts = rawName.split(",");
+                apellido = parts[0].trim();
+                nombre = parts.slice(1).join(" ").trim();
+              } else {
+                const parts = rawName.split(" ");
+                nombre = parts[0] || "";
+                apellido = parts.slice(1).join(" ") || "";
+              }
+            } else if (idxNom !== -1) {
+              nombre = String(row[idxNom] || "").trim();
+              apellido = "Alumno";
+            }
+
             const dniStr = idxDni !== -1 ? String(row[idxDni] || "").trim() : "";
+            const cleanDni = dniStr.replace(/\D/g, '');
             const correo = idxCor !== -1 ? String(row[idxCor] || "").trim() : `${nombre.toLowerCase()}.${apellido.toLowerCase()}@ejemplo.com`;
             const turno = idxTur !== -1 ? String(row[idxTur] || "").trim() : "Mañana";
 
-            if (!nombre || !apellido) continue;
+            if (!nombre && !apellido && !cleanDni) continue;
 
             const fullName = `${nombre} ${apellido}`.toLowerCase();
             let studentObj = db.estudiantes.find(st => 
-              (dniStr && String(st.DNI) === dniStr) || 
+              (cleanDni && String(st.DNI).replace(/\D/g, '') === cleanDni) || 
               (`${st.nombre} ${st.apellido}`.toLowerCase() === fullName && st.escuela_id === schoolId)
             );
 
@@ -3963,40 +4209,95 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
               studentObj.escuela_id = schoolId;
               studentObj.comision_id = comisionId;
               studentObj.correo = correo || studentObj.correo;
+              if (cleanDni) studentObj.DNI = parseInt(cleanDni);
               existsCount++;
             } else {
-              const newId = "std_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-              const cleanDni = dniStr.replace(/\D/g, '');
-              db.estudiantes.push({
+              const newId = "std_" + Date.now() + "_" + (importSeq++) + "_" + Math.floor(Math.random() * 1e9);
+              studentObj = {
                 id: newId,
                 DNI: cleanDni ? parseInt(cleanDni) : newId,
                 escuela_id: schoolId,
                 comision_id: comisionId,
-                nombre,
-                apellido,
+                nombre: nombre || "Alumno",
+                apellido: apellido || "S/D",
                 correo,
                 turno,
                 asistencia_porcentaje: 100,
                 asistencia_dias: [true, true, true, true, true, true, true],
-                calificaciones: {
-                  neumatica: 0,
-                  electroneumatica: 0,
-                  plc: 0,
-                  practico: 0,
-                  recuperatorio_teorico: null,
-                  recuperatorio_practico: null
-                },
-                estado_acreditacion: "Cursando"
-              });
+                estado_acreditacion: "Pendiente"
+              };
+              db.estudiantes.push(studentObj);
               newCount++;
+            }
+
+            touchedStudentIds.add(String(studentObj.id));
+
+            // Si la planilla incluía notas, cargarlas directamente
+            if (idxNeu !== -1 || idxEle !== -1 || idxPlc !== -1 || idxPrac !== -1) {
+              if (!db.calificaciones[studentObj.id]) {
+                db.calificaciones[studentObj.id] = {
+                  estudiante_id: studentObj.id,
+                  notas_teorico: { neumatica: null, electroneumatica: null, plc: null },
+                  rec_teorico: { neumatica: null, electroneumatica: null, plc: null },
+                  promedio_teorico: null,
+                  teorico_aprobado: false,
+                  notas_practico: null,
+                  rec_practico: null,
+                  acreditado: false,
+                  comentarios_mapa: ''
+                };
+              }
+              const cal = db.calificaciones[studentObj.id];
+              const parseGrade = (v) => {
+                if (v === undefined || v === null || String(v).trim() === '') return null;
+                let n = parseFloat(String(v).trim().replace(',', '.'));
+                if (isNaN(n)) return null;
+                if (n > 10) n = 10;
+                if (n < 0) n = 0;
+                return Math.round(n * 100) / 100;
+              };
+              if (idxNeu !== -1) cal.notas_teorico.neumatica = parseGrade(row[idxNeu]);
+              if (idxEle !== -1) cal.notas_teorico.electroneumatica = parseGrade(row[idxEle]);
+              if (idxPlc !== -1) cal.notas_teorico.plc = parseGrade(row[idxPlc]);
+              if (idxPrac !== -1) cal.notas_practico = parseGrade(row[idxPrac]);
+
+              const res = calcularEstadoEstudiante(cal.notas_teorico, cal.notas_practico, cal.rec_teorico, cal.rec_practico);
+              cal.promedio_teorico = res.promedioTeorico;
+              cal.teorico_aprobado = res.teoricoAprobado;
+              cal.acreditado = res.acreditado;
+              cal.estado_calculado = res.estado;
+              studentObj.estado_acreditacion = res.estado;
             }
           }
         });
 
+        // Persistir en localStorage inmediatamente y renderizar UI
         saveDB();
         renderAll();
         closeStudentImportModal();
-        showToast(`✅ Importación completada: ${newCount} alumnos cargados (${existsCount} actualizados/existían).`);
+
+        // Solo se sincronizan los alumnos afectados por esta importación.
+        const alumnosASincronizar = db.estudiantes.filter(st => touchedStudentIds.has(String(st.id)));
+        const califASincronizar = Object.entries(db.calificaciones || {})
+          .filter(([id]) => touchedStudentIds.has(String(id)))
+          .map(([id, data]) => ({ id, ...data }));
+
+        showToast(`✅ ${newCount} alumnos cargados (${existsCount} actualizados). Sincronizando ${alumnosASincronizar.length} registros con la nube...`);
+
+        try {
+          if (typeof syncBatchToFirestore === 'function') {
+            await syncBatchToFirestore("estudiantes", alumnosASincronizar);
+            if (califASincronizar.length > 0) await syncBatchToFirestore("calificaciones", califASincronizar);
+          } else if (typeof syncToFirestore === 'function') {
+            for (const st of alumnosASincronizar) {
+              await syncToFirestore("estudiantes", st.id, st);
+            }
+          }
+          showToast(`☁️ Base de datos en la nube actualizada (${alumnosASincronizar.length} alumnos).`);
+        } catch (err) {
+          console.error("Error al sincronizar la importación de alumnos:", err);
+          showToast(`⚠️ Error al sincronizar con la nube. Revisá la conexión y volvé a importar.`);
+        }
       };
       reader.readAsArrayBuffer(pendingStudentImportFile);
     }
@@ -4047,34 +4348,41 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
       db.estudiantes.push(studentObj);
       saveDB();
+      if (typeof syncToFirestore === 'function') {
+        syncToFirestore("estudiantes", studentObj.id, studentObj);
+      }
       renderAll();
       showToast(`Estudiante ${apellido}, ${nombre} registrado exitosamente.`);
       document.getElementById("addStudentForm").reset();
     }
     
-    function deleteStudent(id) {
+    async function deleteStudent(id) {
       if (currentRole !== 'coordinador') return;
-      if (confirm('¿Estás seguro de eliminar este alumno permanentemente?')) {
-        db.estudiantes = db.estudiantes.filter(e => e.id !== id);
-        if (db.calificaciones) delete db.calificaciones[id];
-        
-        if (typeof dbFs !== 'undefined' && dbFs && isFirebaseConnected) {
-          dbFs.collection("estudiantes").doc(id).delete()
-            .then(() => console.log("Estudiante eliminado de Firestore"))
-            .catch(e => {
-              console.error("Error al eliminar estudiante:", e);
-              showToast("❌ Error en Firebase: " + e.message);
-            });
-          dbFs.collection("calificaciones").doc(id).delete()
-            .then(() => console.log("Calificación eliminada de Firestore"))
-            .catch(e => console.warn("Error al eliminar calificación:", e));
+      if (!confirm('¿Estás seguro de eliminar este alumno permanentemente?')) return;
+
+      db.estudiantes = db.estudiantes.filter(e => String(e.id) !== String(id));
+      if (db.calificaciones) delete db.calificaciones[id];
+      
+      saveDB();
+      renderTeacherSpreadsheet();
+      renderSchoolsList();
+
+      if (typeof dbFs !== 'undefined' && dbFs && isFirebaseConnected) {
+        try {
+          await dbFs.collection("estudiantes").doc(String(id)).delete();
+          console.log("Estudiante eliminado de Firestore exitosamente:", id);
+        } catch (e) {
+          console.error("Error al eliminar estudiante de Firestore:", e);
         }
-        
-        saveDB();
-        renderTeacherSpreadsheet();
-        renderSchoolsList();
-        showToast('Alumno eliminado del sistema.');
+        try {
+          await dbFs.collection("calificaciones").doc(String(id)).delete();
+          console.log("Calificación eliminada de Firestore exitosamente:", id);
+        } catch (e) {
+          console.warn("Error al eliminar calificación:", e);
+        }
       }
+      
+      showToast('Alumno eliminado del sistema permanentemente.');
     }
 
     function openEditStudentModal(studentId) {
@@ -4112,6 +4420,9 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       est.correo = correo;
 
       saveDB();
+      if (typeof syncToFirestore === 'function') {
+        syncToFirestore("estudiantes", est.id, est);
+      }
       renderAll();
       closeEditStudentModal();
       showToast("✅ Datos del alumno actualizados correctamente.");
@@ -6184,6 +6495,34 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             </button>
           </div>
         </form>
+
+        <!-- Acceso Rápido / Roles de Demostración -->
+        <div class="border-t border-dark-border/60 pt-4">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2.5">O ingresar directamente con un perfil:</span>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button type="button" onclick="loginAsPreset('coordinador')" class="p-3 bg-indigo-600/15 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
+              <span class="text-base">👑</span>
+              <div>
+                <div class="font-bold text-indigo-200 text-xs">Israel Pavelek</div>
+                <div class="text-[10px] text-slate-400">Coordinador General</div>
+              </div>
+            </button>
+            <button type="button" onclick="loginAsPreset('docente_etrr')" class="p-3 bg-emerald-600/15 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
+              <span class="text-base">👨‍🏫</span>
+              <div>
+                <div class="font-bold text-emerald-200 text-xs">Docente ETRR</div>
+                <div class="text-[10px] text-slate-400">Carga de Notas</div>
+              </div>
+            </button>
+            <button type="button" onclick="loginAsPreset('escuela_admin_est1')" class="p-3 bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
+              <span class="text-base">🏫</span>
+              <div>
+                <div class="font-bold text-cyan-200 text-xs">Admin EST N°1</div>
+                <div class="text-[10px] text-slate-400">Técnica Campana</div>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
 
     </div>

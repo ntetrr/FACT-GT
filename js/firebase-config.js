@@ -100,9 +100,14 @@ function subscribeToFirestoreCollections() {
 
   // 1. Escuelas
   dbFs.collection("escuelas").onSnapshot(snapshot => {
-    const escuelas = [];
-    snapshot.forEach(doc => escuelas.push({ id: doc.id, ...doc.data() }));
-    db.escuelas = escuelas;
+    const fsEscuelas = [];
+    snapshot.forEach(doc => fsEscuelas.push({ id: doc.id, ...doc.data() }));
+    if (fsEscuelas.length > 0) {
+      db.escuelas = fsEscuelas;
+    } else if (db.escuelas && db.escuelas.length > 0) {
+      db.escuelas.forEach(esc => syncToFirestore("escuelas", esc.id, esc));
+    }
+    if (typeof saveDB === 'function') saveDB();
     if (typeof renderAll === 'function') renderAll();
   }, err => console.warn("Modo fallback/escuelas:", err.message));
 
@@ -123,19 +128,22 @@ function subscribeToFirestoreCollections() {
     if (typeof renderAll === 'function') renderAll();
   }, err => console.warn("Modo fallback/cronogramas:", err.message));
 
-  // 3. Estudiantes
+  // 3. Estudiantes - Firestore es la fuente de verdad en tiempo real
   dbFs.collection("estudiantes").onSnapshot(snapshot => {
-    const estudiantes = [];
-    snapshot.forEach(doc => estudiantes.push({ id: doc.id, ...doc.data() }));
-    db.estudiantes = estudiantes;
+    const fsEstudiantes = [];
+    snapshot.forEach(doc => fsEstudiantes.push({ id: doc.id, ...doc.data() }));
+    db.estudiantes = fsEstudiantes;
+    if (typeof saveDB === 'function') saveDB();
     if (typeof renderAll === 'function') renderAll();
   }, err => console.warn("Modo fallback/estudiantes:", err.message));
 
-  // 4. Calificaciones
+  // 4. Calificaciones - Firestore es la fuente de verdad en tiempo real
   dbFs.collection("calificaciones").onSnapshot(snapshot => {
-    const califs = {};
-    snapshot.forEach(doc => { califs[doc.id] = doc.data(); });
-    db.calificaciones = califs;
+    const fsCalifs = {};
+    snapshot.forEach(doc => { fsCalifs[doc.id] = doc.data(); });
+    db.calificaciones = fsCalifs;
+
+    if (typeof saveDB === 'function') saveDB();
     if (typeof renderAll === 'function') renderAll();
   }, err => console.warn("Modo fallback/calificaciones:", err.message));
 
@@ -143,7 +151,11 @@ function subscribeToFirestoreCollections() {
   dbFs.collection("avisos_logisticos").onSnapshot(snapshot => {
     const avisos = [];
     snapshot.forEach(doc => avisos.push({ id: doc.id, ...doc.data() }));
-    db.avisos_logisticos = avisos;
+    if (avisos.length > 0) {
+      db.avisos_logisticos = avisos;
+    } else if (db.avisos_logisticos && db.avisos_logisticos.length > 0) {
+      db.avisos_logisticos.forEach(av => syncToFirestore("avisos_logisticos", av.id, av));
+    }
     if (typeof renderAvisosLogisticos === 'function') renderAvisosLogisticos();
     if (typeof renderAll === 'function') renderAll();
   }, err => console.warn("Modo fallback/avisos:", err.message));
@@ -202,10 +214,40 @@ async function syncToFirestore(collectionName, docId, data) {
   if (dbFs && isFirebaseConnected) {
     try {
       const cleanData = JSON.parse(JSON.stringify(data));
-      await dbFs.collection(collectionName).doc(docId).set(cleanData, { merge: true });
+      await dbFs.collection(collectionName).doc(String(docId)).set(cleanData, { merge: true });
       console.log(`🔥 Sincronizado a Firestore [${collectionName}/${docId}]`);
     } catch (err) {
       console.error(`Error al guardar en Firestore [${collectionName}/${docId}]:`, err);
     }
   }
 }
+
+// Función auxiliar para sincronización por lotes (batch) en Firestore.
+// Firestore limita cada batch a 500 escrituras, por eso se divide en trozos.
+async function syncBatchToFirestore(collectionName, items) {
+  if (!items || items.length === 0) return;
+  if (!dbFs || !isFirebaseConnected) return;
+
+  const validItems = items.filter(item => item && item.id);
+  const CHUNK_SIZE = 450;
+
+  for (let start = 0; start < validItems.length; start += CHUNK_SIZE) {
+    const chunk = validItems.slice(start, start + CHUNK_SIZE);
+    try {
+      const batch = dbFs.batch();
+      chunk.forEach(item => {
+        const cleanData = JSON.parse(JSON.stringify(item));
+        const docRef = dbFs.collection(collectionName).doc(String(item.id));
+        batch.set(docRef, cleanData, { merge: true });
+      });
+      await batch.commit();
+      console.log(`🔥 Sincronizado por lotes a Firestore [${collectionName}]: ${chunk.length} docs`);
+    } catch (err) {
+      console.warn(`Fallback individual para lote [${collectionName}]:`, err.message);
+      for (const item of chunk) {
+        await syncToFirestore(collectionName, item.id, item);
+      }
+    }
+  }
+}
+
