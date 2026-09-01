@@ -3235,8 +3235,8 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             </div>
             <div>
               <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">Fecha Certificación</span>
-              <input type="date" value="${calif.fecha_certificacion || ''}" 
-                id="cert-fecha-${est.id}" onchange="updateGradeField('${est.id}', 'fecha_certificacion', this.value)" 
+              <input type="date" value="${calif.fecha_certificacion || ''}" min="2000-01-01" max="2100-12-31"
+                id="cert-fecha-${est.id}" onblur="updateGradeField('${est.id}', 'fecha_certificacion', this.value)"
                 ${isReadOnly ? 'disabled class="w-full bg-slate-900 text-slate-500 border border-slate-800 rounded px-2 py-1 text-[10px] cursor-not-allowed"' : 'class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none"'} >
             </div>
           </div>
@@ -3295,6 +3295,15 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       }
 
       if (field === 'fecha_certificacion') {
+        // Ignorar fechas parciales/inválidas (ej. mientras se tipea el año "0026")
+        // para no disparar un re-render que corte la edición.
+        if (value) {
+          const y = parseInt(String(value).split('-')[0], 10);
+          if (isNaN(y) || y < 2000 || y > 2100) {
+            showToast("⚠️ Ingresá una fecha con año completo (ej. 2026).");
+            return;
+          }
+        }
         calif.fecha_certificacion = value;
         saveDB();
         syncToFirestore("calificaciones", studentId, calif);
@@ -3411,8 +3420,8 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
                 </div>
                 <div>
                   <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">Fecha Certificación</span>
-                  <input type="date" value="${calif.fecha_certificacion || ''}" 
-                    id="cert-fecha-${studentId}" onchange="updateGradeField('${studentId}', 'fecha_certificacion', this.value)" 
+                  <input type="date" value="${calif.fecha_certificacion || ''}" min="2000-01-01" max="2100-12-31"
+                    id="cert-fecha-${studentId}" onblur="updateGradeField('${studentId}', 'fecha_certificacion', this.value)"
                     class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none">
                 </div>
               </div>
