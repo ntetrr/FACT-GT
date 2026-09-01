@@ -74,3 +74,24 @@ body {
   border-color: #818CF8 !important;
   box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.3) !important;
 }
+
+/* ── Responsive / PWA ─────────────────────────────────────────── */
+
+/* Evitar scroll horizontal por el drawer oculto (-translate-x-full) */
+body {
+  overflow-x: hidden;
+}
+
+/* Respetar el notch cuando corre instalada como PWA (solo mobile) */
+@supports (padding: max(0px)) {
+  @media (max-width: 767px) {
+    #app-layout > main {
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+  }
+  #sidebar {
+    padding-top: env(safe-area-inset-top);
+  }
+}

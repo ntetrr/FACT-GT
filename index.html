@@ -2,8 +2,18 @@
 <html lang="es" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Gen Técnico ETRR - Sistema de Gestión</title>
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="color-scheme" content="dark light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gen Técnico">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
   <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -103,6 +113,8 @@
       aside,
       nav,
       .no-print,
+      .pwa-install-btn,
+      #sidebar-backdrop,
       #user-login-modal,
       #crono-cards-container,
       #crono-create-panel,
@@ -312,9 +324,9 @@
 
   <!-- APP LAYOUT -->
   <div id="app-layout" class="min-h-screen flex flex-col md:flex-row hidden">
-    
+
     <!-- SIDEBAR -->
-    <aside class="w-full md:w-64 bg-dark-card border-r border-dark-border flex flex-col shrink-0">
+    <aside id="sidebar" class="fixed md:sticky top-0 left-0 z-40 h-[100dvh] md:h-screen w-72 md:w-64 shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto bg-dark-card border-r border-dark-border flex flex-col">
       <!-- Logo Brand -->
       <div class="p-6 border-b border-dark-border flex items-center justify-between">
         <div class="flex items-center space-x-3">
@@ -326,6 +338,9 @@
             <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Roberto Rocca ETRR</span>
           </div>
         </div>
+        <button onclick="closeSidebar()" class="md:hidden text-slate-400 hover:text-white transition p-1" aria-label="Cerrar menú">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
       </div>
 
       <!-- Navigation Menu -->
@@ -378,16 +393,24 @@
 
     </aside>
 
+    <!-- Backdrop del drawer (solo mobile) -->
+    <div id="sidebar-backdrop" onclick="closeSidebar()" class="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden hidden"></div>
+
     <!-- MAIN BODY -->
-    <main class="flex-1 p-6 md:p-8 flex flex-col space-y-6 overflow-y-auto max-h-screen">
-      
+    <main class="flex-1 min-w-0 p-4 sm:p-6 md:p-8 flex flex-col space-y-6 overflow-y-auto md:max-h-screen">
+
       <!-- TOP STATUS HEADER -->
-      <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dark-border">
-        <div>
-          <h2 id="page-title" class="text-2xl font-extrabold text-white">Dashboard Principal</h2>
-          <p id="page-subtitle" class="text-sm text-slate-400 mt-1">Estadísticas globales y rendimiento académico del programa Gen Técnico.</p>
+      <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4 border-b border-dark-border">
+        <div class="flex items-center gap-3 min-w-0">
+          <button onclick="toggleSidebar()" class="md:hidden shrink-0 p-2 -ml-1 rounded-lg bg-dark-card border border-dark-border text-slate-200 hover:bg-slate-800 transition" aria-label="Abrir menú">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div class="min-w-0">
+            <h2 id="page-title" class="text-xl md:text-2xl font-extrabold text-white">Dashboard Principal</h2>
+            <p id="page-subtitle" class="text-xs sm:text-sm text-slate-400 mt-1">Estadísticas globales y rendimiento académico del programa Gen Técnico.</p>
+          </div>
         </div>
-        <div class="flex items-center space-x-3">
+        <div class="flex flex-wrap items-center gap-2 justify-end w-full sm:w-auto">
           <div class="flex items-center space-x-3 bg-dark-card border border-dark-border px-4 py-2 rounded-xl text-xs">
             <span class="text-slate-400">Escuela técnica:</span>
             <span id="header-school-name" class="font-bold text-indigo-400 bg-brand-500/10 px-2.5 py-1 rounded-md">Todas</span>
@@ -405,6 +428,11 @@
           <button onclick="editMyProfile()" class="flex items-center space-x-1.5 bg-brand-600/20 hover:bg-brand-600/30 text-brand-300 border border-brand-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm" title="Editar mi información personal">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
             <span class="hidden sm:inline">Editar Mi Perfil</span>
+          </button>
+
+          <button onclick="promptInstall()" style="display:none" class="pwa-install-btn inline-flex items-center space-x-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm" title="Instalar la aplicación">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
+            <span>Instalar app</span>
           </button>
 
           <button id="theme-toggle-btn" onclick="toggleTheme()" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm" title="Cambiar Tema Oscuro / Claro">
@@ -762,7 +790,7 @@
 
             <div class="bg-slate-950/40 p-3 rounded-xl space-y-2 hidden" id="crono-transport-section">
               <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">🚌 Transporte Especial (Técnica 4)</span>
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div class="col-span-1"><input type="text" id="crono-trans-empresa" value="Rucar S.A." placeholder="Empresa" class="w-full bg-dark-input text-white border border-dark-border rounded-lg px-2.5 py-1 text-xs outline-none"></div>
                 <div><input type="text" id="crono-trans-salida" value="07:15 AM" placeholder="Salida" class="w-full bg-dark-input text-white border border-dark-border rounded-lg px-2.5 py-1 text-xs outline-none"></div>
                 <div><input type="text" id="crono-trans-regreso" value="16:30 PM" placeholder="Regreso" class="w-full bg-dark-input text-white border border-dark-border rounded-lg px-2.5 py-1 text-xs outline-none"></div>
@@ -1212,9 +1240,9 @@
   </div>
 
   <!-- MODAL: EDITAR CRONOGRAMA -->
-  <div id="edit-crono-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+  <div id="edit-crono-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeEditCronoModal()"></div>
-    <div class="relative bg-[#0f1729] border border-slate-700/60 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+    <div class="relative bg-[#0f1729] border border-slate-700/60 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
       <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700/60 bg-gradient-to-r from-indigo-500/5 to-brand-500/5">
         <div class="flex items-center space-x-3">
           <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 border border-indigo-500/20">
@@ -1286,9 +1314,9 @@
 
   <!-- MODAL: AVISO LOGÍSTICO (CREAR / EDITAR) -->
 
-  <div id="aviso-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+  <div id="aviso-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAvisoModal()"></div>
-    <div class="relative bg-[#0f1729] border border-slate-700/60 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+    <div class="relative bg-[#0f1729] border border-slate-700/60 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
       <!-- Modal Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700/60 bg-gradient-to-r from-amber-500/5 to-indigo-500/5">
         <div class="flex items-center space-x-3">
@@ -1342,9 +1370,9 @@
   </div>
 
   <!-- MODAL: GESTIÓN DE ENCUENTRO (CLASE) -->
-  <div id="class-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+  <div id="class-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeClassModal()"></div>
-    <div class="relative bg-dark-card border border-dark-border w-full max-w-md rounded-2xl shadow-2xl p-6">
+    <div class="relative bg-dark-card border border-dark-border w-full max-w-md rounded-2xl shadow-2xl p-6 max-h-[90dvh] overflow-y-auto">
       <div class="flex justify-between items-center mb-5">
         <h3 id="class-modal-title" class="text-base font-extrabold text-white">Editar Encuentro</h3>
         <button onclick="closeClassModal()" class="text-slate-400 hover:text-white transition p-1">
@@ -1564,6 +1592,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
     });
 
     function switchTab(tabId) {
+      if (typeof closeSidebar === 'function') closeSidebar();
       const canSeeAllTabs = currentRole === 'coordinador' || currentRole === 'veedor';
       if (!canSeeAllTabs && (tabId === 'escuelas' || tabId === 'usuarios')) {
         showToast("⚠️ Acceso restringido a Coordinación General o Veedores.");
@@ -4667,7 +4696,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
               </div>
             ` : ''}
           </div>
-          <div class="grid grid-cols-4 gap-1.5 text-center">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
             <div class="bg-slate-900/50 rounded-xl p-2.5">
               <div class="text-[10px] text-slate-500 uppercase font-black tracking-wider">Inicio</div>
               <div class="text-xs text-white font-bold mt-1">${fmtDate(firstDate)}</div>
@@ -6200,7 +6229,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
   </script>
   <!-- MODAL IMPORTACION DE ESTUDIANTES -->
   <div id="student-import-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-dark-border/60 pb-3">
         <div>
           <h3 class="text-base font-extrabold text-white">Importar Alumnos desde Excel</h3>
@@ -6245,7 +6274,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
   <!-- MODAL EDITAR ESTUDIANTE -->
   <div id="student-edit-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-dark-border/60 pb-3">
         <div>
           <h3 class="text-base font-extrabold text-white">Editar Datos del Alumno</h3>
@@ -6289,7 +6318,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
   <!-- MODAL CONFIGURACION DE TRANSPORTE POR ESCUELA -->
   <div id="transport-config-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-dark-border/60 pb-3">
         <div>
           <h3 class="text-base font-extrabold text-white" id="trans-modal-title">Configurar Transporte</h3>
@@ -6388,20 +6417,20 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
 
   <!-- MODAL DE INICIO DE SESION Y GESTION DE PERFILES -->
   <div id="user-login-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
-    <div class="bg-dark-card border border-dark-border rounded-3xl w-full max-w-xl p-6 sm:p-8 shadow-2xl space-y-6">
-      
+    <div class="bg-dark-card border border-dark-border rounded-3xl w-full max-w-xl p-5 sm:p-8 shadow-2xl space-y-6 max-h-[90dvh] overflow-y-auto">
+
       <!-- Header -->
-      <div class="flex items-center justify-between border-b border-dark-border/60 pb-4">
-        <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-brand-500/20">
+      <div class="flex items-start justify-between gap-3 border-b border-dark-border/60 pb-4">
+        <div class="flex items-center space-x-3 min-w-0">
+          <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-brand-500/20">
             GT
           </div>
-          <div>
-            <h3 class="text-lg font-extrabold text-white">Inicio de Sesión — Gen Técnico ETRR</h3>
+          <div class="min-w-0">
+            <h3 class="text-base sm:text-lg font-extrabold text-white">Inicio de Sesión — Gen Técnico ETRR</h3>
             <p class="text-xs text-slate-400">Ingresa con tu correo y contraseña de Firebase Auth.</p>
           </div>
         </div>
-        <button id="login-modal-close-btn" onclick="closeLoginModal()" class="text-slate-400 hover:text-white transition p-1">
+        <button id="login-modal-close-btn" onclick="closeLoginModal()" class="shrink-0 text-slate-400 hover:text-white transition p-1">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
@@ -6454,12 +6483,24 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
         </form>
       </div>
 
+      <!-- Instalar como app -->
+      <div id="pwa-install-section" style="display:none" class="border-t border-dark-border/60 pt-4 space-y-2">
+        <button onclick="promptInstall()" style="display:none" class="pwa-install-btn w-full items-center justify-center space-x-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-4 py-2.5 rounded-xl text-xs font-bold transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
+          <span>Instalar app en este dispositivo</span>
+        </button>
+        <p id="pwa-ios-hint" style="display:none" class="text-[11px] text-slate-400 leading-relaxed">
+          📱 En iPhone/iPad: tocá <span class="font-bold text-slate-200">Compartir</span> ⬆️ y luego
+          <span class="font-bold text-slate-200">"Agregar a inicio de pantalla"</span> para instalar la app.
+        </p>
+      </div>
+
     </div>
   </div>
 
   <!-- MODAL: CREAR / EDITAR USUARIO Y CONCEDER ROL -->
   <div id="user-edit-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+    <div class="bg-dark-card border border-dark-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-dark-border/60 pb-3">
         <div>
           <h3 class="text-base font-extrabold text-white" id="user-modal-title">Conceder Acceso / Editar Usuario</h3>
@@ -6526,6 +6567,70 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       </form>
     </div>
   </div>
+
+  <!-- ===================== MOBILE DRAWER + PWA ===================== -->
+  <script>
+    // --- Drawer de navegación (mobile) ---
+    function openSidebar() {
+      const s = document.getElementById('sidebar');
+      const b = document.getElementById('sidebar-backdrop');
+      if (s) s.classList.remove('-translate-x-full');
+      if (b) b.classList.remove('hidden');
+    }
+    function closeSidebar() {
+      const s = document.getElementById('sidebar');
+      const b = document.getElementById('sidebar-backdrop');
+      if (s) s.classList.add('-translate-x-full');
+      if (b) b.classList.add('hidden');
+    }
+    function toggleSidebar() {
+      const s = document.getElementById('sidebar');
+      if (!s) return;
+      s.classList.contains('-translate-x-full') ? openSidebar() : closeSidebar();
+    }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+
+    // --- PWA: service worker + instalación ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW:', err));
+      });
+    }
+
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      document.querySelectorAll('.pwa-install-btn').forEach((b) => { b.style.display = 'inline-flex'; });
+      const sec = document.getElementById('pwa-install-section');
+      if (sec) sec.style.display = 'block';
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      document.querySelectorAll('.pwa-install-btn').forEach((b) => { b.style.display = 'none'; });
+      if (typeof showToast === 'function') showToast('✅ Aplicación instalada.');
+    });
+    function promptInstall() {
+      if (!deferredInstallPrompt) {
+        if (typeof showToast === 'function') showToast('Para instalar: menú del navegador → "Instalar aplicación".');
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.finally(() => { deferredInstallPrompt = null; });
+    }
+
+    // iOS no dispara beforeinstallprompt: mostrar nota de "Agregar a inicio".
+    (function iosInstallHint() {
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      if (isIOS && !standalone) {
+        const hint = document.getElementById('pwa-ios-hint');
+        if (hint) hint.style.display = 'block';
+        const sec = document.getElementById('pwa-install-section');
+        if (sec) sec.style.display = 'block';
+      }
+    })();
+  </script>
 
 </body>
 </html>

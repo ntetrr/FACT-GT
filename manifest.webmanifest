@@ -1,0 +1,17 @@
+{
+  "name": "Gen Técnico ETRR — Sistema de Gestión",
+  "short_name": "Gen Técnico",
+  "description": "Gestión académica del programa Gen Técnico Roberto Rocca ETRR.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090D1A",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
