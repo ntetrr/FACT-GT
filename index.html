@@ -2947,9 +2947,26 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
     }
 
     // RENDER: TEACHER GRADES & ATTENDANCE SPREADSHEET
+    let pendingSpreadsheetRender = false;
     function renderTeacherSpreadsheet() {
       const body = document.getElementById("teacher-spreadsheet-body");
       if (!body) return;
+
+      // Evitar re-renderizar mientras se está cargando una nota: destruir el <input>
+      // en pleno tipeo hace perder el foco. Se difiere hasta que el foco salga de la tabla.
+      // (Los checkbox de asistencia no cuentan: ya se hizo clic, re-renderizar no molesta.)
+      const active = document.activeElement;
+      const editingField = active && body.contains(active) && (
+        active.tagName === "TEXTAREA" ||
+        active.tagName === "SELECT" ||
+        (active.tagName === "INPUT" && active.type !== "checkbox" && active.type !== "radio")
+      );
+      if (editingField) {
+        pendingSpreadsheetRender = true;
+        return;
+      }
+      pendingSpreadsheetRender = false;
+
       body.innerHTML = "";
 
       const schoolFilter = document.getElementById("teacher-school-filter").value;
@@ -3139,36 +3156,36 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <!-- Neumática (Inicial + Rec) -->
             <td class="p-2">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
-                id="neu-${est.id}" oninput="updateGradeField('${est.id}', 'neumatica', this.value)" 
+                id="neu-${est.id}" onchange="updateGradeField('${est.id}', 'neumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.neumatica ?? ''}" 
-                id="rec-neu-${est.id}" oninput="updateGradeField('${est.id}', 'rec_neumatica', this.value)" 
+                id="rec-neu-${est.id}" onchange="updateGradeField('${est.id}', 'rec_neumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
             <!-- Electroneumática (Inicial + Rec) -->
             <td class="p-2">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
-                id="ele-${est.id}" oninput="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
+                id="ele-${est.id}" onchange="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.electroneumatica ?? ''}" 
-                id="rec-ele-${est.id}" oninput="updateGradeField('${est.id}', 'rec_electroneumatica', this.value)" 
+                id="rec-ele-${est.id}" onchange="updateGradeField('${est.id}', 'rec_electroneumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
             <!-- PLC (Inicial + Rec) -->
             <td class="p-2">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.plc ?? ''}" 
-                id="plc-${est.id}" oninput="updateGradeField('${est.id}', 'plc', this.value)" 
+                id="plc-${est.id}" onchange="updateGradeField('${est.id}', 'plc', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${recNotes.plc ?? ''}" 
-                id="rec-plc-${est.id}" oninput="updateGradeField('${est.id}', 'rec_plc', this.value)" 
+                id="rec-plc-${est.id}" onchange="updateGradeField('${est.id}', 'rec_plc', this.value)" 
                 ${isReadOnly ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
 
@@ -3180,12 +3197,12 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <!-- Práctico (Inicial + Rec) -->
             <td class="p-2">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
-                id="prac-${est.id}" oninput="updateGradeField('${est.id}', 'practico', this.value)" 
+                id="prac-${est.id}" onchange="updateGradeField('${est.id}', 'practico', this.value)" 
                 ${isReadOnly || practicoDisabled ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
             <td class="p-2 bg-slate-950/30">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.rec_practico ?? ''}" 
-                id="rec-prac-${est.id}" oninput="updateGradeField('${est.id}', 'rec_practico', this.value)" 
+                id="rec-prac-${est.id}" onchange="updateGradeField('${est.id}', 'rec_practico', this.value)" 
                 ${isReadOnly || practicoDisabled ? 'disabled class="w-14 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-1 py-1 text-xs cursor-not-allowed"' : 'class="w-14 grade-input-rec text-center rounded-lg px-1 py-1 text-xs font-semibold"'} >
             </td>
           `;
@@ -3195,17 +3212,17 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <!-- Notas Teóricas -->
             <td class="p-4">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.neumatica ?? ''}" 
-                id="neu-${est.id}" oninput="updateGradeField('${est.id}', 'neumatica', this.value)" 
+                id="neu-${est.id}" onchange="updateGradeField('${est.id}', 'neumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
             <td class="p-4">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.electroneumatica ?? ''}" 
-                id="ele-${est.id}" oninput="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
+                id="ele-${est.id}" onchange="updateGradeField('${est.id}', 'electroneumatica', this.value)" 
                 ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
             <td class="p-4">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${notes.plc ?? ''}" 
-                id="plc-${est.id}" oninput="updateGradeField('${est.id}', 'plc', this.value)" 
+                id="plc-${est.id}" onchange="updateGradeField('${est.id}', 'plc', this.value)" 
                 ${isReadOnly ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
 
@@ -3217,7 +3234,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <!-- Examen Práctico -->
             <td class="p-4 text-center">
               <input type="number" step="0.01" min="0" max="10" placeholder="-" value="${calif.notas_practico ?? ''}" 
-                id="prac-${est.id}" oninput="updateGradeField('${est.id}', 'practico', this.value)" 
+                id="prac-${est.id}" onchange="updateGradeField('${est.id}', 'practico', this.value)" 
                 ${isReadOnly || practicoDisabled ? 'disabled class="w-16 bg-slate-900 text-slate-500 text-center border border-slate-800 rounded-lg px-2 py-1.5 text-xs cursor-not-allowed"' : 'class="w-16 grade-input text-center rounded-lg px-2 py-1.5 text-xs font-semibold"'} >
             </td>
           `;
@@ -3230,7 +3247,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             <div>
               <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">N° Certificado Festo</span>
               <input type="text" placeholder="Ej: ETRR-2026-001" value="${calif.num_certificado || ''}" 
-                id="cert-num-${est.id}" oninput="updateGradeField('${est.id}', 'num_certificado', this.value)" 
+                id="cert-num-${est.id}" onchange="updateGradeField('${est.id}', 'num_certificado', this.value)" 
                 ${isReadOnly ? 'disabled class="w-full bg-slate-900 text-slate-500 border border-slate-800 rounded px-2 py-1 text-[10px] cursor-not-allowed"' : 'class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none font-mono"'} >
             </div>
             <div>
@@ -3256,7 +3273,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
           <!-- Seguimiento MAPA -->
           <td class="p-4">
             <input type="text" placeholder="Observaciones..." value="${calif.comentarios_mapa || ''}" 
-              id="mapa-${est.id}" oninput="updateGradeField('${est.id}', 'comentarios_mapa', this.value)" 
+              id="mapa-${est.id}" onchange="updateGradeField('${est.id}', 'comentarios_mapa', this.value)" 
               ${isReadOnly ? 'disabled class="w-full bg-slate-900 text-slate-500 border border-slate-800 rounded-lg px-3 py-1.5 text-xs cursor-not-allowed"' : 'class="w-full bg-slate-900/80 text-slate-100 placeholder-slate-500 border border-slate-700/80 rounded-lg px-3 py-1.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-medium"'} >
           </td>
         `;
@@ -3265,6 +3282,18 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
         body.appendChild(row);
       });
     }
+
+    // Cuando el foco sale de la tabla de calificaciones, aplicar el re-render que se difirió.
+    document.addEventListener("focusout", (e) => {
+      const body = document.getElementById("teacher-spreadsheet-body");
+      if (!body || !body.contains(e.target) || !pendingSpreadsheetRender) return;
+      setTimeout(() => {
+        const a = document.activeElement;
+        // Si el foco pasó a otra celda de la misma tabla, seguir esperando.
+        if (a && body.contains(a)) return;
+        if (pendingSpreadsheetRender) renderTeacherSpreadsheet();
+      }, 150);
+    });
 
     // UPDATE VALUE ON THE SPREADSHEET STATE
     function updateGradeField(studentId, field, value) {
@@ -3415,7 +3444,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
                 <div>
                   <span class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider block mb-0.5">N° Certificado Festo</span>
                   <input type="text" placeholder="Ej: ETRR-2026-001" value="${calif.num_certificado || ''}" 
-                    id="cert-num-${studentId}" oninput="updateGradeField('${studentId}', 'num_certificado', this.value)" 
+                    id="cert-num-${studentId}" onchange="updateGradeField('${studentId}', 'num_certificado', this.value)" 
                     class="w-full bg-slate-900/90 text-emerald-200 border border-emerald-500/40 rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-400 outline-none font-mono">
                 </div>
                 <div>
