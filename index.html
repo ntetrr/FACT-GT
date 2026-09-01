@@ -1815,49 +1815,6 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
       }
     }
 
-    function loginAsPreset(presetRole) {
-      let user;
-      if (presetRole === 'coordinador') {
-        user = {
-          id: "YN8KgpP4RrcHC7YrYm30rBHLFxt1",
-          nombre: "Israel Pavelek",
-          apellido: "Coordinador General ETRR",
-          email: "ipavelek@gmail.com",
-          rol: "coordinador",
-          escuela_id: null
-        };
-      } else if (presetRole === 'docente_etrr') {
-        user = {
-          id: "uid_docente_etrr",
-          nombre: "Docente ETRR",
-          apellido: "Capacitador Festo",
-          email: "docente@etrr.edu.ar",
-          rol: "docente_etrr",
-          escuela_id: null
-        };
-      } else if (presetRole === 'escuela_admin_est1') {
-        user = {
-          id: "uid_admin_est1",
-          nombre: "Coordinador EST N°1",
-          apellido: "Campana",
-          email: "eest1@abc.gob.ar",
-          rol: "escuela_admin_est1",
-          escuela_id: "est1"
-        };
-      }
-      if (user) {
-        currentUser = user;
-        if (!db.usuarios) db.usuarios = [];
-        if (!db.usuarios.some(u => u.id === user.id)) {
-          db.usuarios.push(user);
-        }
-        localStorage.setItem("festo_gt_user", JSON.stringify(currentUser));
-        saveDB();
-        updateAuthUI();
-        showToast(`✅ Sesión iniciada como: ${currentUser.nombre}`);
-      }
-    }
-
     function logoutUser() {
       localStorage.removeItem("festo_gt_user");
       if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
@@ -6441,7 +6398,7 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
           </div>
           <div>
             <h3 class="text-lg font-extrabold text-white">Inicio de Sesión — Gen Técnico ETRR</h3>
-            <p class="text-xs text-slate-400">Selecciona un perfil o ingresa con tus credenciales de Firebase Auth.</p>
+            <p class="text-xs text-slate-400">Ingresa con tu correo y contraseña de Firebase Auth.</p>
           </div>
         </div>
         <button id="login-modal-close-btn" onclick="closeLoginModal()" class="text-slate-400 hover:text-white transition p-1">
@@ -6495,34 +6452,6 @@ if (db.cronogramas && Array.isArray(db.cronogramas)) {
             </button>
           </div>
         </form>
-
-        <!-- Acceso Rápido / Roles de Demostración -->
-        <div class="border-t border-dark-border/60 pt-4">
-          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2.5">O ingresar directamente con un perfil:</span>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <button type="button" onclick="loginAsPreset('coordinador')" class="p-3 bg-indigo-600/15 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
-              <span class="text-base">👑</span>
-              <div>
-                <div class="font-bold text-indigo-200 text-xs">Israel Pavelek</div>
-                <div class="text-[10px] text-slate-400">Coordinador General</div>
-              </div>
-            </button>
-            <button type="button" onclick="loginAsPreset('docente_etrr')" class="p-3 bg-emerald-600/15 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
-              <span class="text-base">👨‍🏫</span>
-              <div>
-                <div class="font-bold text-emerald-200 text-xs">Docente ETRR</div>
-                <div class="text-[10px] text-slate-400">Carga de Notas</div>
-              </div>
-            </button>
-            <button type="button" onclick="loginAsPreset('escuela_admin_est1')" class="p-3 bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/30 rounded-2xl text-left transition flex items-center space-x-2.5">
-              <span class="text-base">🏫</span>
-              <div>
-                <div class="font-bold text-cyan-200 text-xs">Admin EST N°1</div>
-                <div class="text-[10px] text-slate-400">Técnica Campana</div>
-              </div>
-            </button>
-          </div>
-        </div>
       </div>
 
     </div>
